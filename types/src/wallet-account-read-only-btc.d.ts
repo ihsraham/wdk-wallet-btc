@@ -1,5 +1,14 @@
 export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
     /**
+     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
+     *
+     * @protected
+     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
+     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
+     * @returns {IBtcClient} The bitcoin client.
+     */
+    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
+    /**
      * Creates a new bitcoin read-only wallet account.
      *
      * @param {string} address - The account's address.
@@ -35,21 +44,19 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _client: IBtcClient;
     /**
-     * A list that maps each client to a flag that is true only if the client was externally provided.
-     *
-     * @protected
-     * @type {Array<boolean>}
-     */
-    get _isExternalClient(): Array<boolean>;
-    /**
      * The dust limit in satoshis based on the BIP type.
      *
      * @private
      * @type {bigint}
      */
-    private _dustLimit: bigint;
+    private _dustLimit;
     /**
      * Returns the account's bitcoin balance.
+     *
+     * When the client reports unconfirmedOutgoing, unconfirmed incoming funds
+     * aren't counted (since they aren't spendable yet) but unconfirmed
+     * outgoing funds are subtracted immediately. Clients that can't compute
+     * unconfirmedOutgoing fall back to netting the raw unconfirmed balance.
      *
      * @returns {Promise<bigint>} The bitcoin balance (in satoshis).
      */
@@ -124,18 +131,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      */
     protected _getConfirmations(height: number): Promise<number | null>;
     /**
-     * The default poll cadence for {@link waitForTransaction}, in milliseconds. Set to 30 seconds to suit bitcoin's ~10-minute block time.
-     *
-     * @type {number}
-     */
-    get defaultWaitInterval(): number;
-    /**
-     * The default time budget for {@link waitForTransaction}, in milliseconds. Set to 1 hour to allow for bitcoin's slower inclusion and confirmation.
-     *
-     * @type {number}
-     */
-    get defaultWaitTimeout(): number;
-    /**
      * Returns an estimation of the maximum spendable amount (in satoshis) that can be sent in
      * a single transaction, after subtracting estimated transaction fees.
      *
@@ -152,6 +147,13 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         feeRate?: number | bigint;
     }): Promise<BtcMaxSpendableResult>;
     /**
+     * A list that maps each client to a flag that is true only if the client was externally provided.
+     *
+     * @protected
+     * @type {Array<boolean>}
+     */
+    protected get _isExternalClient(): Array<boolean>;
+    /**
      * Closes any internal connection with the server.
      */
     dispose(): void;
@@ -162,15 +164,6 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @returns {Promise<void>}
      */
     protected _ensureConnected(): Promise<void>;
-    /**
-     * Creates a bitcoin client from a descriptor, or returns the client as-is if already instantiated.
-     *
-     * @protected
-     * @param {IBtcClient | BtcClientDescriptor} client - The bitcoin client or client descriptor.
-     * @param {"bitcoin" | "regtest" | "testnet"} [network] - The network name.
-     * @returns {IBtcClient} The bitcoin client.
-     */
-    protected static _createClient(client: IBtcClient | BtcClientDescriptor, network?: "bitcoin" | "regtest" | "testnet"): IBtcClient;
     /** @private */
     private _toBigInt;
     /**
@@ -185,7 +178,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
      * @param {string} tx.toAddress - The recipient's address.
      * @param {number | bigint} tx.amount - The amount to send (in satoshis).
      * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-     * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
+     * @returns {Promise<BtcSpendPlan>} - The funding plan.
      * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
      * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
      */
@@ -194,30 +187,38 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
         toAddress: string;
         amount: number | bigint;
         feeRate: number | bigint;
-    }): Promise<{
-        utxos: OutputWithValue[];
-        fee: bigint;
-        changeValue: bigint;
-    }>;
-    /**
-     * Verifies a message's signature.
-     *
-     * @param {string} message - The original message.
-     * @param {string} signature - The signature to verify.
-     * @returns {Promise<boolean>} True if the signature is valid.
-     */
-    verify(message: string, signature: string): Promise<boolean>;
-    /**
-     * Closes any internal connection with the server.
-     */
-    dispose(): void;
+    }): Promise<BtcSpendPlan>;
 }
 export type MempoolElectrumConfig = import("./transports/index.js").MempoolElectrumConfig;
 export type MempoolElectrumClient = import("./transports/index.js").MempoolElectrumClient;
 export type IBtcClient = import("./transports/index.js").IBtcClient;
 export type BlockbookClientConfig = import("./transports/blockbook-client.js").BlockbookClientConfig;
 export type ElectrumWsConfig = import("./transports/ws.js").ElectrumWsConfig;
-export type OutputWithValue = import("@bitcoinerlab/coinselect").OutputWithValue;
+/**
+ * A selected Bitcoin input with the previous output data needed by the PSBT builder.
+ */
+export type BtcSpendUtxo = import("./transports/index.js").BtcUtxo & {
+    vout: {
+        value: bigint;
+        scriptPubKey: {
+            hex: string;
+        };
+    };
+};
+export type BtcSpendPlan = {
+    /**
+     * - Selected unspent outputs and their previous output scripts.
+     */
+    utxos: BtcSpendUtxo[];
+    /**
+     * - Planned fee in satoshis.
+     */
+    fee: bigint;
+    /**
+     * - Change output value in satoshis, or zero.
+     */
+    changeValue: bigint;
+};
 export type Network = import("bitcoinjs-lib").Network;
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;

@@ -343,6 +343,7 @@ const pkSigner = new PrivateKeySignerBtc("a1b2c3d4e5f6789abcdef...", {
 | [WalletManagerBtc](#walletmanagerbtc)                 | Main class for managing Bitcoin wallets. Extends `WalletManager` from `@tetherto/wdk-wallet`.                                                     | [Constructor](#constructor), [Methods](#methods)                                |
 | [WalletAccountBtc](#walletaccountbtc)                 | Individual Bitcoin wallet account implementation. Extends `WalletAccountReadOnlyBtc` and implements `IWalletAccount` from `@tetherto/wdk-wallet`. | [Constructor](#constructor-1), [Methods](#methods-1), [Properties](#properties) |
 | [WalletAccountReadOnlyBtc](#walletaccountreadonlybtc) | Read-only Bitcoin wallet account. Extends `WalletAccountReadOnly` from `@tetherto/wdk-wallet`.                                                    | [Constructor](#constructor-2), [Methods](#methods-2)                            |
+| [WalletAccountHdBtc](#hd-accounts-and-fresh-change-addresses) | Opt-in account covering receiving and internal change branches with durable reservations. | [Usage and recovery](#hd-accounts-and-fresh-change-addresses) |
 
 ### WalletManagerBtc
 
@@ -393,6 +394,8 @@ const walletFromSeed = new WalletManagerBtc(seedPhrase, { network: "bitcoin" });
 | ------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- |
 | `getAccount(indexOrSignerName?, options?)` | Returns a wallet account at the specified index, or the account for a registered signer name | `Promise<WalletAccountBtc>`     |
 | `getAccountByPath(path, options?)`    | Returns a wallet account at the specified BIP-84 derivation path | `Promise<WalletAccountBtc>`               |
+| `getHdAccount(accountIndex, options)` | Returns an HD account at `accountIndex'` (use `0` or `undefined` for the default); requires `options.stateStore` | `Promise<WalletAccountHdBtc>` |
+| `getHdAccountByPath(path, options)` | Returns an HD account at a relative account-root path; requires `options.stateStore` | `Promise<WalletAccountHdBtc>` |
 | `addSigner(name, signer)`             | Registers a named signer with the wallet manager (inherited from the base manager) | `WalletManagerBtc`      |
 | `getFeeRates()`                       | Returns current fee rates for transactions                       | `Promise<{normal: number, fast: number}>` |
 | `dispose()`                           | Disposes all wallet accounts, clearing private keys from memory  | `void`                                    |
@@ -918,6 +921,46 @@ This implementation supports the following address types:
 - **UTXO Management**: UTXO selection and change handling is managed automatically by the wallet
 - **Fee Management**: Fee rates are fetched from mempool.space API automatically
 - **Address Format**: Native SegWit (bech32) addresses are used by default
+
+## HD accounts and fresh change addresses
+
+The opt-in HD account discovers receiving (`0/i`) and change (`1/j`) addresses beneath one account root. Existing `getAccount()` and `getAccountByPath()` remain single-address accounts.
+
+```js
+import WalletManagerBtc from '@tetherto/wdk-wallet-btc'
+
+export async function openHdWallet (seedOrSigner, stateStore, client) {
+  const wallet = new WalletManagerBtc(seedOrSigner, { client })
+  try {
+    const account = await wallet.getHdAccount(0, { stateStore })
+    return { wallet, account }
+  } catch (error) {
+    wallet.dispose()
+    throw error
+  }
+}
+```
+
+`stateStore` must implement durable, atomic `load()` and `compareAndSwap(expectedRevision, nextState)` operations. Every writer for an account must share that store. The default seed signer is positioned at the purpose/coin-type root; a supplied signer must be positioned appropriately because derivation is relative. `getHdAccountByPath('', options)` uses a signer already at an account root.
+
+Both HD lookup methods return a cached `WalletAccountHdBtc` and reject invalid paths, missing storage, non-derivable signers, or conflicting cached options. Options also accept `signerName`, `gapLimit`, and `maxAddresses`.
+
+- `getAddress()` returns receiving address `0/0`; `getNewAddress()` reserves a fresh receiving address.
+- Sending allocates fresh internal change, discovers both branches, and signs each input with its owning child signer.
+- Balances, quotes and maximum spend use confirmed outputs minus outstanding input reservations. Pending incoming funds and change are excluded until confirmed.
+- `signTransaction()` keeps its inputs reserved because the returned bytes may be broadcast later. Reservations remain after confirmation to protect inputs that a reorg makes unspent again. `sendTransaction(hex)` requires that reservation, including after restart. `getReservations()` exposes public metadata. Release a reservation only when its signed bytes will never be broadcast again; confirmation or a network timeout is insufficient evidence.
+- Discovery defaults to a gap of 20 and a bound of 1000 addresses per branch. Incomplete discovery fails explicitly. Back up account state, root path and discovery settings alongside the seed; reorgs can invalidate seed-only gap assumptions.
+- Do not spend concurrently through overlapping legacy leaf accounts or independent stores. Read-only HD conversion is unsupported while public-only signer derivation remains unsettled. Dispose the wallet when finished.
+
+The exported `HdAccountState` and `HdAccountStateStore` types define the storage contract.
+
+Reservation records accumulate until explicitly released. The store accepts at most twice `maxAddresses` records and fails closed when that bound is exceeded; increasing scan bounds requires retaining all existing state. Automatic pruning and state compaction are not provided.
+
+### Recovering an HD account
+
+Stop all writers, including overlapping single-address accounts. Confirm the seed or signer, network, BIP and relative root against a previously recorded primary address. Restore the latest complete state into a dedicated store, preserving reservations and increasing indices; never overwrite a newer revision with an older backup. Keep the original scan settings and enough address budget to cover issued indices plus the terminating gap.
+
+Check balances and history against the canonical chain before resuming writes. If metadata is missing or stale, use known address bounds to enlarge discovery and keep recovery read-only until outstanding signed transactions are reconciled. A finite scan cannot prove that no funds exist outside its range, and a seed cannot reconstruct signed-transaction reservations. Retain enlarged settings while inspecting recovered funds: reads do not persist new discovery bounds. Provider silence or transaction confirmation does not establish that old signed bytes can no longer be broadcast.
 
 ## 🛠️ Development
 

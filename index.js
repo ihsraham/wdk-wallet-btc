@@ -42,6 +42,13 @@ export { default } from './src/wallet-manager-btc.js'
 
 export { default as WalletAccountReadOnlyBtc } from './src/wallet-account-read-only-btc.js'
 
+export { default as WalletAccountHdBtc } from './src/wallet-account-hd-btc.js'
+
+/** @typedef {import('./src/wallet-account-hd-btc.js').HdAccountOptions} HdAccountOptions */
+/** @typedef {import('./src/hd-account-state.js').HdAccountStateStore} HdAccountStateStore */
+/** @typedef {import('./src/hd-account-state.js').HdAccountState} HdAccountState */
+/** @typedef {import('./src/hd-account-state.js').HdReservation} HdReservation */
+
 export { default as WalletAccountBtc } from './src/wallet-account-btc.js'
 
 export { IBtcClient, BlockbookClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from './src/transports/index.js'

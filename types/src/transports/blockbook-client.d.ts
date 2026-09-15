@@ -1,4 +1,8 @@
 /**
+ * @typedef {Object} BlockbookClientConfig
+ * @property {string} url - The Blockbook server API base URL (e.g., 'https://btc1.trezor.io/api').
+ */
+/**
  * Stateless BTC client backed by the Blockbook v2 REST API.
  *
  * @implements {IBtcClient}
@@ -14,7 +18,7 @@ export default class BlockbookClient implements IBtcClient {
      * @private
      * @type {string}
      */
-    private _baseUrl: string;
+    private _baseUrl;
     /**
      * Establishes the connection to the server.
      * Blockbook is a stateless REST API, so clients don't need to call this method.

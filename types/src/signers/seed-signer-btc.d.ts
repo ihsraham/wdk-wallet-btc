@@ -17,8 +17,6 @@ export function getBtcDerivationPathPrefix(config?: BtcSignerConfig): string;
  * @implements {ISignerBtc}
  */
 export default class SeedSignerBtc implements ISignerBtc {
-    /** @private */
-    private static _init;
     /**
      * Creates a signer from an extended private key (xprv/tprv). The imported node is the
      * signer's root, at path "m".
@@ -29,6 +27,8 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @throws {ValueError} If an unsupported BIP is specified.
      */
     static fromXprv(xprv: string, config?: BtcSignerConfig): SeedSignerBtc;
+    /** @private */
+    private static _init;
     /**
      * Creates a SeedSignerBtc from a BIP-39 seed.
      *
@@ -39,18 +39,6 @@ export default class SeedSignerBtc implements ISignerBtc {
      * @throws {ValueError} If an unsupported BIP is specified.
      */
     constructor(seed: string | Buffer, path?: string, config?: BtcSignerConfig);
-    /** @private */
-    private _config;
-    /** @private */
-    private _network;
-    /** @private */
-    private _account;
-    /** @private */
-    private _path;
-    /** @private */
-    private _publicKey;
-    /** @private */
-    private _address;
     /**
      * Whether this signer can derive child signers. Always true: every seed signer holds an
      * HD node with a private key and can derive below its own path.
@@ -129,12 +117,12 @@ export default class SeedSignerBtc implements ISignerBtc {
      * Disposes the signer, securely erasing its private key from memory.
      */
     dispose(): void;
+    /** @private @type {BIP32Interface | undefined} */
+    private _account;
 }
 export type ISignerBtc = import("./signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
-export type InvalidSignerError = import("@tetherto/wdk-wallet").InvalidSignerError;
-export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type BIP32Interface = import("bip32").BIP32Interface;
 export type Network = import("bitcoinjs-lib").Network;
-export type Psbt = import("bitcoinjs-lib").Psbt;
+import { Psbt } from 'bitcoinjs-lib';

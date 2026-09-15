@@ -1,5 +1,38 @@
+/**
+ * Converts a bitcoin address to an Electrum-style script hash.
+ *
+ * @param {string} address - The bitcoin address.
+ * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
+ * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
+ */
+export function toScriptHash(address: string, network: import("bitcoinjs-lib").Network): string;
+/** @typedef {import('@tetherto/wdk-wallet').ProviderError} ProviderError */
+/**
+ * @typedef {Object} BtcClientConfig
+ * @property {number} [timeout] - Connection timeout in milliseconds (default: 15_000).
+ */
+/**
+ * @typedef {Object} BtcBalance
+ * @property {number} confirmed - Confirmed balance in satoshis.
+ * @property {number} [unconfirmed] - Unconfirmed balance in satoshis.
+ * @property {number} [unconfirmedOutgoing] - Amount leaving the address through unconfirmed transactions, in satoshis.
+ *   Clients that implement this should follow the same trust rule as {@link BlockbookClient}'s `getUnconfirmedOutgoing`,
+ *   so `getBalance()` behaves consistently regardless of which client backs it.
+ */
+/**
+ * @typedef {Object} BtcUtxo
+ * @property {string} tx_hash - The transaction hash containing this UTXO.
+ * @property {number} tx_pos - The output index within the transaction.
+ * @property {number} value - The UTXO value in satoshis.
+ * @property {number} [height] - The block height (0 if unconfirmed).
+ */
+/**
+ * @typedef {Object} BtcHistoryItem
+ * @property {string} tx_hash - The transaction hash.
+ * @property {number} height - The block height (0 or negative if unconfirmed).
+ */
 /** @interface */
-export default interface IBtcClient {
+export default class IBtcClient {
     /**
      * Closes the connection.
      *
@@ -70,14 +103,7 @@ export default interface IBtcClient {
      */
     estimateFee(blocks: number): Promise<number>;
 }
-/**
- * Converts a bitcoin address to an Electrum-style script hash.
- *
- * @param {string} address - The bitcoin address.
- * @param {import('bitcoinjs-lib').Network} network - The bitcoin network.
- * @returns {string} The reversed SHA-256 hash of the output script, hex-encoded.
- */
-export function toScriptHash(address: string, network: import('bitcoinjs-lib').Network): string;
+export type ProviderError = import("@tetherto/wdk-wallet").ProviderError;
 export type BtcClientConfig = {
     /**
      * - Connection timeout in milliseconds (default: 15_000).
@@ -128,4 +154,3 @@ export type BtcHistoryItem = {
      */
     height: number;
 };
-export type ProviderError = import("@tetherto/wdk-wallet").ProviderError;

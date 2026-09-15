@@ -1,5 +1,6 @@
 export { default } from "./src/wallet-manager-btc.js";
 export { default as WalletAccountReadOnlyBtc } from "./src/wallet-account-read-only-btc.js";
+export { default as WalletAccountHdBtc } from "./src/wallet-account-hd-btc.js";
 export { default as WalletAccountBtc } from "./src/wallet-account-btc.js";
 export { ISigner } from "@tetherto/wdk-wallet";
 export type BtcTransactionReceipt = import("bitcoinjs-lib").Transaction;
@@ -23,4 +24,8 @@ export type BtcBalance = import("./src/transports/index.js").BtcBalance;
 export type BtcUtxo = import("./src/transports/index.js").BtcUtxo;
 export type BtcHistoryItem = import("./src/transports/index.js").BtcHistoryItem;
 export type MempoolElectrumConfig = import("./src/transports/index.js").MempoolElectrumConfig;
+export type HdAccountOptions = import("./src/wallet-account-hd-btc.js").HdAccountOptions;
+export type HdAccountStateStore = import("./src/hd-account-state.js").HdAccountStateStore;
+export type HdAccountState = import("./src/hd-account-state.js").HdAccountState;
+export type HdReservation = import("./src/hd-account-state.js").HdReservation;
 export { IBtcClient, BlockbookClient, MempoolElectrumClient, ElectrumTcp, ElectrumSsl, ElectrumTls, ElectrumWs } from "./src/transports/index.js";

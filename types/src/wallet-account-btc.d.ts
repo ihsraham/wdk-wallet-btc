@@ -12,6 +12,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
      * Creates a new bitcoin wallet account from a BIP-39 seed, deriving the account's key at the
      * given derivation path.
      *
+     * @overload
      * @param {string | Uint8Array} seed - The wallet's BIP-39 seed phrase or seed bytes.
      * @param {string} path - The derivation path relative to the BIP root (e.g. "0'/0/0").
      * @param {BtcWalletConfig} [config] - The configuration object.
@@ -22,6 +23,7 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     /**
      * Creates a new bitcoin wallet account using a signer.
      *
+     * @overload
      * @param {ISignerBtc} signer - The signer.
      * @param {BtcAccountConfig & SignerOptions} [config] - The configuration object. The network and BIP are taken from the signer.
      */
@@ -35,12 +37,6 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     protected _shouldWipeSignerOnDisposal: boolean;
     /** @private */
     private _signer;
-    /**
-     * Returns the account's address.
-     *
-     * @returns {Promise<string>} The account's address.
-     */
-    getAddress(): Promise<string>;
     /**
      * The derivation path of this account, or null if the account's signer is not bound to a
      * derivation position (e.g. private-key signers).
@@ -127,14 +123,39 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc implement
     toReadOnlyAccount(): Promise<WalletAccountReadOnlyBtc>;
     _btcReadOnlyAccount: WalletAccountReadOnlyBtc;
     /**
-     * Disposes the wallet account, erasing the private key from memory and closing the connection with the server.
-     * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
+     * Computes the fee of a signed raw transaction by resolving the value of each
+     * spent input from the blockchain and subtracting the total output value.
+     *
+     * @protected
+     * @param {Transaction} transaction - The decoded signed transaction.
+     * @returns {Promise<bigint>} The fee (in satoshis).
      */
-    dispose(): void;
-    /** @private */
-    private _getSignedTransactionFee;
-    /** @private */
-    private _getRawTransaction;
+    protected _getSignedTransactionFee(transaction: Transaction): Promise<bigint>;
+    /**
+     * Signs a prepared PSBT using the account signing capability.
+     *
+     * @protected
+     * @param {Psbt} psbt - The unsigned or partially signed transaction.
+     * @returns {Promise<string>} The signed PSBT in base64 format.
+     */
+    protected _signPsbt(psbt: Psbt): Promise<string>;
+    /**
+     * Builds and signs a spend plan, using the account address when changeAddress is omitted.
+     * @protected
+     * @param {import('./wallet-account-read-only-btc.js').BtcSpendPlan & { to: string, value: number | bigint, feeRate: number | bigint, changeAddress?: string }} transaction - Selected inputs, payment and optional change destination.
+     * @returns {Promise<{ txid: string, hex: string, fee: bigint, vsize: number }>} Signed transaction and fee in satoshis.
+     */
+    protected _getRawTransaction({ utxos, to, value, fee, feeRate, changeValue, changeAddress }: import("./wallet-account-read-only-btc.js").BtcSpendPlan & {
+        to: string;
+        value: number | bigint;
+        feeRate: number | bigint;
+        changeAddress?: string;
+    }): Promise<{
+        txid: string;
+        hex: string;
+        fee: bigint;
+        vsize: number;
+    }>;
     /** @private */
     private _buildSignedTransaction;
 }
@@ -188,3 +209,5 @@ export type BtcTransfer = {
     recipient?: string;
 };
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js';
+import { Transaction } from 'bitcoinjs-lib';
+import { Psbt } from 'bitcoinjs-lib';

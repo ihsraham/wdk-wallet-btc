@@ -37,7 +37,16 @@ const bitcoinMessage = MessageFactory(ecc)
 /** @typedef {import('./transports/blockbook-client.js').BlockbookClientConfig} BlockbookClientConfig */
 /** @typedef {import('./transports/ws.js').ElectrumWsConfig} ElectrumWsConfig */
 
-/** @typedef {import('@bitcoinerlab/coinselect').OutputWithValue} OutputWithValue */
+/**
+ * A selected Bitcoin input with the previous output data needed by the PSBT builder.
+ * @typedef {import('./transports/index.js').BtcUtxo & { vout: { value: bigint, scriptPubKey: { hex: string } } }} BtcSpendUtxo
+ */
+/**
+ * @typedef {Object} BtcSpendPlan
+ * @property {BtcSpendUtxo[]} utxos - Selected unspent outputs and their previous output scripts.
+ * @property {bigint} fee - Planned fee in satoshis.
+ * @property {bigint} changeValue - Change output value in satoshis, or zero.
+ */
 /** @typedef {import('bitcoinjs-lib').Network} Network */
 /** @typedef {import('bitcoinjs-lib').Transaction} BtcTransactionReceipt */
 
@@ -588,7 +597,7 @@ export default class WalletAccountReadOnlyBtc extends WalletAccountReadOnly {
    * @param {string} tx.toAddress - The recipient's address.
    * @param {number | bigint} tx.amount - The amount to send (in satoshis).
    * @param {number | bigint} tx.feeRate - The fee rate (in sats/vB).
-   * @returns {Promise<{ utxos: OutputWithValue[], fee: bigint, changeValue: bigint }>} - The funding plan.
+   * @returns {Promise<BtcSpendPlan>} - The funding plan.
    * @throws {ValueError} If the amount doesn't clear the dust limit, or the spend requires more inputs than allowed.
    * @throws {TransactionError} If the account has no unspent outputs, or its balance doesn't cover the amount and its fees.
    */

@@ -1,7 +1,3 @@
-/** @typedef {import('bitcoinjs-lib').Network} Network */
-/** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
-/** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
-/** @typedef {import('ecpair').ECPairInterface | import('bip32').BIP32Interface} SignerLike */
 /**
  * Signs every PSBT input owned by the given leaf key, in place.
  *
@@ -46,5 +42,21 @@ export function signMessage(message: string, privateKey: Uint8Array, bip: number
 export type Network = import("bitcoinjs-lib").Network;
 export type Psbt = import("bitcoinjs-lib").Psbt;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
-export type ValueError = import("@tetherto/wdk-wallet").ValueError;
-export type SignerLike = import("ecpair").ECPairInterface | import("bip32").BIP32Interface;
+export type SignerLike = any | import("bip32").BIP32Interface;
+export type InputOwnershipResult = {
+    /**
+     * - The raw PSBT input data.
+     */
+    input: any;
+    /**
+     * - The previous output, or null if unavailable.
+     */
+    prevOut: {
+        script: Uint8Array;
+        value: bigint;
+    } | null;
+    /**
+     * - Whether the input belongs to the given script.
+     */
+    isOurs: boolean;
+};

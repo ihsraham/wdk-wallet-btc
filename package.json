@@ -18,15 +18,20 @@
   "type": "module",
   "types": "./types",
   "scripts": {
-    "build:types": "tsc",
+    "build:types": "node scripts/build-types.cjs",
     "lint": "standard",
     "lint:fix": "standard --fix",
-    "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --testPathIgnorePatterns tests/integration",
-    "test:unit:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage --testPathIgnorePatterns tests/integration",
-    "test:coverage": "npm run test:unit:coverage && npm run test:integration:coverage",
+    "test": "npm run test:hd && npm run build:types && npm run test:types && npm run test:unit && npm run test:integration",
+    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --testPathIgnorePatterns \"tests/(integration|hd|package)\"",
+    "test:unit:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage --testPathIgnorePatterns \"tests/(integration|hd|package)\"",
+    "test:coverage": "npm run test:hd && npm run build:types && npm run test:types && npm run test:unit:coverage && npm run test:integration:coverage",
     "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration",
-    "test:integration:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration --coverage"
+    "test:integration:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest tests/integration --coverage",
+    "test:hd": "node --test tests/hd/*.test.js",
+    "test:hd:regtest": "node tests/regtest-hd/verify.js",
+    "test:types": "node --test tests/package/declaration-compiler.test.js && tsc -p tests/package/tsconfig.json",
+    "test:hd:recovery": "node tests/regtest-hd/recovery.js",
+    "test:hd:bare": "bare tests/package/bare.mjs"
   },
   "dependencies": {
     "@bitcoinerlab/btcmessage": "4.0.1",
@@ -37,7 +42,7 @@
     "@noble/hashes": "^1.8.0",
     "@tetherto/wdk-failover-provider": "1.0.0-beta.2",
     "@tetherto/wdk-wallet": "github:claudiovb/wdk-wallet#fix/universal-signer",
-    "bare-node-runtime": "^1.5.0",
+    "bare-node-runtime": "^1.5.1",
     "bip32": "5.0.1",
     "bip39": "3.1.0",
     "bitcoinjs-lib": "7.0.1",
@@ -76,7 +81,8 @@
     "ignore": [
       "bare.js",
       "src/signers/bare.js",
-      "tests/**/*.js"
+      "tests/**/*.js",
+      "tests/package/bare.mjs"
     ]
   }
 }

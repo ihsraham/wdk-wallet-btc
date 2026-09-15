@@ -1,3 +1,13 @@
+/** @typedef {import('bitcoinjs-lib').Psbt} Psbt */
+/** @typedef {import('@tetherto/wdk-wallet').UnsupportedOperationError} UnsupportedOperationError */
+/**
+ * @typedef {Object} BtcSignerConfig
+ * @property {"bitcoin" | "regtest" | "testnet"} [network] - The name of the network to use (default: "bitcoin").
+ * @property {44 | 84} [bip] - The BIP address type used for key and address derivation.
+ *   - 44: [BIP-44 (P2PKH / legacy)](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+ *   - 84: [BIP-84 (P2WPKH / native SegWit)](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+ *   - Default: 84 (P2WPKH).
+ */
 /**
  * Interface for Bitcoin signers, extending the base `ISigner` from `@tetherto/wdk-wallet`.
  *
@@ -39,6 +49,8 @@ export class ISignerBtc extends ISigner {
      */
     signPsbt(psbt: Psbt | string): Promise<string>;
 }
+export type Psbt = import("bitcoinjs-lib").Psbt;
+export type UnsupportedOperationError = import("@tetherto/wdk-wallet").UnsupportedOperationError;
 export type BtcSignerConfig = {
     /**
      * - The name of the network to use (default: "bitcoin").
@@ -52,6 +64,4 @@ export type BtcSignerConfig = {
      */
     bip?: 44 | 84;
 };
-export type Psbt = import("bitcoinjs-lib").Psbt;
-export type UnsupportedOperationError = import("@tetherto/wdk-wallet").UnsupportedOperationError;
-import { ISigner } from "@tetherto/wdk-wallet";
+import { ISigner } from '@tetherto/wdk-wallet';

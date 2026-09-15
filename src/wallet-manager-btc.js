@@ -13,17 +13,19 @@
 // limitations under the License.
 'use strict'
 
-import WalletManager, { InvalidSignerError } from '@tetherto/wdk-wallet'
+import WalletManager, { InvalidSignerError, ValueError } from '@tetherto/wdk-wallet'
 
 import FailoverProvider from '@tetherto/wdk-failover-provider'
 
 import WalletAccountBtc from './wallet-account-btc.js'
+import WalletAccountHdBtc from './wallet-account-hd-btc.js'
+import { isIndex } from './hd-account-state.js'
 import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer-btc.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 /** @typedef {import('@tetherto/wdk-wallet').ISigner} ISigner */
 /** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
-/** @typedef {import('@tetherto/wdk-wallet').ValueError} ValueError */
+/** @typedef {import('./wallet-account-hd-btc.js').HdAccountOptions} HdAccountOptions */
 
 /** @typedef {import('./wallet-account-btc.js').BtcWalletConfig} BtcWalletConfig */
 
@@ -75,6 +77,11 @@ export default class WalletManagerBtc extends WalletManager {
      * @type {boolean}
      */
     this._shouldWipeDefaultSignerOnDisposal = isSeed
+
+    /** @private */
+    this._hdAccounts = new Map()
+    /** @private */
+    this._hdDisposed = false
 
     const clientOptions = config.client ? [config.client].flat() : [{ type: 'electrum', clientConfig: { host: 'electrum.blockstream.info', port: 50_001 } }]
 
@@ -183,6 +190,65 @@ export default class WalletManagerBtc extends WalletManager {
   }
 
   /**
+   * Returns a multi-address account rooted at accountIndex'. Derivation is relative
+   * to the selected signer's path, normally the purpose/coin-type root.
+   * Never spend through overlapping legacy accounts or independent state stores.
+   * @param {number | undefined} accountIndex - Non-hardened account number (default 0).
+   * @param {HdAccountOptions} options - Required dedicated durable reservation store and discovery limits.
+   * @returns {Promise<WalletAccountHdBtc>}
+   */
+  async getHdAccount (accountIndex = 0, options) {
+    if (!isIndex(accountIndex)) throw new ValueError('Invalid HD account index.')
+    return this.getHdAccountByPath(`${accountIndex}'`, options)
+  }
+
+  /**
+   * Returns an HD account at a relative root path. Use an empty path when a
+   * registered signer already represents the desired account root.
+   * Concurrent requests share one instance. Its store and discovery limits cannot change.
+   * @param {string} path - Relative account root, for example "0'".
+   * @param {HdAccountOptions} options - Required dedicated durable reservation store and discovery limits.
+   * @returns {Promise<WalletAccountHdBtc>}
+   */
+  async getHdAccountByPath (path, options) {
+    if (this._hdDisposed) throw new InvalidSignerError('The wallet manager has been disposed.')
+    if (typeof path !== 'string' || (path !== '' && !/^(0|[1-9][0-9]*)'?(\/(0|[1-9][0-9]*)'?)*$/.test(path))) throw new ValueError('Invalid relative HD account path.')
+    if (path.split('/').some(segment => segment && !isIndex(Number(segment.replace("'", ''))))) throw new ValueError('Invalid HD account path index.')
+    if (!options?.stateStore) throw new ValueError('HD accounts require a durable state store.')
+    const { signerName, stateStore, gapLimit = 20, maxAddresses = 1000 } = options
+    const signer = this.getSigner(signerName)
+    if (!signer.isDerivable) throw new InvalidSignerError('HD accounts require a derivable signer.')
+    let accounts = this._hdAccounts.get(signer)
+    if (!accounts) { accounts = new Map(); this._hdAccounts.set(signer, accounts) }
+    const existing = accounts.get(path)
+    if (existing) {
+      if (existing.stateStore !== stateStore || existing.gapLimit !== gapLimit || existing.maxAddresses !== maxAddresses) throw new ValueError('The cached HD account has different storage or discovery options.')
+      return existing.promise
+    }
+    const entry = { stateStore, gapLimit, maxAddresses, account: null, promise: null }
+    accounts.set(path, entry)
+    entry.promise = (async () => {
+      let root
+      try {
+        root = path === '' ? signer : await signer.derive(path)
+        if (path !== '' && root === signer) throw new InvalidSignerError('Derivation must return an independent child signer.')
+        if (this._hdDisposed) {
+          if (root !== signer) root.dispose()
+          throw new InvalidSignerError('The wallet manager has been disposed.')
+        }
+        const account = await WalletAccountHdBtc.create(root, { ...this._config, client: this._clientList, stateStore, gapLimit, maxAddresses }, root !== signer)
+        if (this._hdDisposed) { account.dispose(); throw new InvalidSignerError('The wallet manager has been disposed.') }
+        entry.account = account
+        return account
+      } catch (error) {
+        accounts.delete(path)
+        throw error
+      }
+    })()
+    return entry.promise
+  }
+
+  /**
    * Returns the current fee rates.
    *
    * @returns {Promise<FeeRates>} The fee rates (in satoshis).
@@ -214,16 +280,21 @@ export default class WalletManagerBtc extends WalletManager {
    * The default signer is wiped only if the manager created it internally from a seed.
    */
   dispose () {
+    this._hdDisposed = true
+    const errors = []
+    const dispose = action => {
+      try { action() } catch (error) { errors.push(error) }
+    }
+    for (const accounts of this._hdAccounts.values()) {
+      for (const entry of accounts.values()) dispose(() => entry.account?.dispose())
+    }
+    this._hdAccounts.clear()
     for (const [i, isExternal] of this._isExternalClient.entries()) {
-      if (!isExternal) {
-        this._clientList[i].close()
-      }
+      if (!isExternal) dispose(() => this._clientList[i].close())
     }
-
-    if (this._shouldWipeDefaultSignerOnDisposal) {
-      this._defaultSigner.dispose()
-    }
-
-    super.dispose()
+    if (this._shouldWipeDefaultSignerOnDisposal) dispose(() => this._defaultSigner.dispose())
+    dispose(() => super.dispose())
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) throw new AggregateError(errors, 'Multiple wallet resources failed disposal.')
   }
 }

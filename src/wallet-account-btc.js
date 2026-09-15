@@ -23,7 +23,7 @@ import SeedSignerBtc, { getBtcDerivationPathPrefix } from './signers/seed-signer
 import WalletAccountReadOnlyBtc from './wallet-account-read-only-btc.js'
 import { compare, fromHex, toHex } from 'uint8array-tools'
 
-/** @typedef {import('@tetherto/wdk-wallet').IWalletAccount} IWalletAccount */
+/** @template TSignedTransaction @typedef {import('@tetherto/wdk-wallet').IWalletAccount<TSignedTransaction>} IWalletAccount */
 
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
@@ -437,17 +437,18 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
    * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
    */
   dispose () {
-    if (this._shouldWipeSignerOnDisposal) {
-      this._signer.dispose()
+    try {
+      if (this._shouldWipeSignerOnDisposal) this._signer.dispose()
+    } finally {
+      super.dispose()
     }
-    super.dispose()
   }
 
   /**
    * Computes the fee of a signed raw transaction by resolving the value of each
    * spent input from the blockchain and subtracting the total output value.
    *
-   * @private
+   * @protected
    * @param {Transaction} transaction - The decoded signed transaction.
    * @returns {Promise<bigint>} The fee (in satoshis).
    */
@@ -471,8 +472,24 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
     return totalInput - totalOutput
   }
 
-  /** @private */
-  async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue }) {
+  /**
+   * Signs a prepared PSBT using the account signing capability.
+   *
+   * @protected
+   * @param {Psbt} psbt - The unsigned or partially signed transaction.
+   * @returns {Promise<string>} The signed PSBT in base64 format.
+   */
+  async _signPsbt (psbt) {
+    return this._signer.signPsbt(psbt)
+  }
+
+  /**
+   * Builds and signs a spend plan, using the account address when changeAddress is omitted.
+   * @protected
+   * @param {import('./wallet-account-read-only-btc.js').BtcSpendPlan & { to: string, value: number | bigint, feeRate: number | bigint, changeAddress?: string }} transaction - Selected inputs, payment and optional change destination.
+   * @returns {Promise<{ txid: string, hex: string, fee: bigint, vsize: number }>} Signed transaction and fee in satoshis.
+   */
+  async _getRawTransaction ({ utxos, to, value, fee, feeRate, changeValue, changeAddress }) {
     feeRate = this._toBigInt(feeRate)
     if (feeRate < 1n) feeRate = 1n
     value = this._toBigInt(value)
@@ -514,13 +531,13 @@ export default class WalletAccountBtc extends WalletAccountReadOnlyBtc {
       }
 
       psbt.addOutput({ address: to, value: rcptVal })
-      if (chgVal > 0n) psbt.addOutput({ address: await this.getAddress(), value: chgVal })
+      if (chgVal > 0n) psbt.addOutput({ address: changeAddress ?? await this.getAddress(), value: chgVal })
 
       return psbt
     }
 
     const signAndFinalize = async (psbt) => {
-      const signedBase64 = await this._signer.signPsbt(psbt)
+      const signedBase64 = await this._signPsbt(psbt)
       if (typeof signedBase64 !== 'string') {
         throw new TypeError('signPsbt() must return a base64 string per the ISignerBtc contract')
       }

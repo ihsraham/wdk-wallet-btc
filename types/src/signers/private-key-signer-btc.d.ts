@@ -1,3 +1,6 @@
+/** @typedef {import('./signer-btc.js').ISignerBtc} ISignerBtc */
+/** @typedef {import('./signer-btc.js').BtcSignerConfig} BtcSignerConfig */
+/** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /**
  * Signer backed by a single raw private key (non-HD).
  *
@@ -16,7 +19,10 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
      * @throws {ValueError} If an unsupported BIP is specified.
      */
     constructor(privateKey: string | Uint8Array | Buffer, config?: BtcSignerConfig);
-    /** @private */
+    /**
+     * @private
+     * @type {BtcSignerConfig}
+     */
     private _config;
     /** @private */
     private _network;
@@ -108,6 +114,4 @@ export default class PrivateKeySignerBtc implements ISignerBtc {
 export type ISignerBtc = import("./signer-btc.js").ISignerBtc;
 export type BtcSignerConfig = import("./signer-btc.js").BtcSignerConfig;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
-export type UnsupportedOperationError = import("@tetherto/wdk-wallet").UnsupportedOperationError;
-export type ValueError = import("@tetherto/wdk-wallet").ValueError;
-export type Psbt = import("bitcoinjs-lib").Psbt;
+import { Psbt } from 'bitcoinjs-lib';

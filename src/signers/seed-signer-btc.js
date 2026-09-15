@@ -277,6 +277,7 @@ export default class SeedSignerBtc {
       sodium_memzero(this._account.privateKey)
       sodium_memzero(this._account.chainCode)
     }
+    /** @private @type {BIP32Interface | undefined} */
     this._account = undefined
   }
 
